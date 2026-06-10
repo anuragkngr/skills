@@ -24,6 +24,7 @@ Use before compiling, packaging, or running any generated project, in ANY langua
    - Maven: `maven-compiler-plugin` with `<release>${java.version}</release>` (= TSA version), or a `maven-toolchains-plugin` `<jdk><version>17</version>`. If the ambient JDK is newer than the plugin supports, **bump `maven-compiler-plugin`** to a version that runs on it (rather than downgrading the JDK below target) — but prefer running the build on the TSA-matching JDK.
    - Gradle: `java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }`.
    - Node/Python/Go/.NET: set `engines`/`requires-python`/`go` directive/`TargetFramework` to the TSA version.
+   - **Annotation processors on a newer ambient JDK (e.g. ambient JDK 25, TSA target 17):** if you cannot provision the target JDK and must compile on the newer ambient JDK, pin `maven-compiler-plugin` `<release>` to the TSA version AND bump build-time annotation processors to versions that support the ambient JDK — notably **Lombok ≥ 1.18.34** (Lombok 1.18.30 throws `java.lang.ExceptionInInitializerError: com.sun.tools.javac.code.TypeTag :: UNKNOWN` on JDK 21+/25). Prefer provisioning the TSA-matching JDK; this is the no-install fallback that still emits TSA-version bytecode.
 5. **Rebuild from the project root** and confirm exit 0. If a toolchain truly cannot be provisioned (no network, locked registry), return **STATUS=BLOCKED** naming the exact missing toolchain — never silently build on the wrong major version.
 
 ## Patterns
@@ -38,6 +39,7 @@ Use before compiling, packaging, or running any generated project, in ANY langua
 - Rewriting source to dodge a toolchain mismatch instead of fixing the toolchain
 - Letting compiler `release`/source float to the ambient runtime
 - Bumping the source language version above the TSA target to satisfy a newer runtime
+- Leaving an outdated annotation processor (e.g. Lombok 1.18.30) when building on a newer ambient JDK — it crashes the compiler (`TypeTag :: UNKNOWN`); bump it (Lombok ≥ 1.18.34) or build on the TSA JDK
 
 ## Tool Selection
 - JVM: sdkman / apt / asdf / maven-toolchains-plugin / Gradle toolchains
