@@ -1,12 +1,12 @@
 ---
 name: "spring-boot"
-description: "Spring Boot 3.x/4.x implementation idioms: dependency injection, configuration, web/data starters, actuator, virtual threads, production-ready patterns."
-version: 1
+description: "Spring Boot 3.x implementation idioms: dependency injection, configuration, web/data starters, actuator, virtual threads, production-ready patterns. Version resolved from the TSA (e.g. Spring Boot 3.2.x / Java 17)."
+version: 2
 created: "2026-06-09"
-updated: "2026-06-09"
+updated: "2026-06-11"
 ---
 ## When to Use
-Use when tsa.technology.application.framework = Spring Boot. Activate during the implementation phase for a JVM service. Defer to java21-springboot4-best-practices for language-level rules.
+Use when tsa.technology.application.framework = Spring Boot. Activate during the implementation phase for a JVM service. Resolve the exact framework/language version from the TSA and defer language-level rules to the matching best-practices skill (e.g. java17-springboot3-best-practices for Java 17 / Spring Boot 3.x).
 
 ## Procedure
 1. Resolve Spring Boot version + starters from the TSA artifacts.build_files (pom.xml/build.gradle).
@@ -44,4 +44,5 @@ Use when tsa.technology.application.framework = Spring Boot. Activate during the
 ## RAG Sources
 - spring-boot-docs
 - spring-framework-docs
-- java21-springboot4-best-practices skill
+- tsa.technology.application / tsa.technology.observability
+- java17-springboot3-best-practices skill (language-level rules for the resolved version)

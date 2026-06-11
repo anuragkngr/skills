@@ -1,97 +1,62 @@
 ---
 name: "adr-microservices-blueprint"
-description: "Architecture Decision Record blueprint for microservices modernization with Java 21, Spring Boot 4.x, multi-tenant architecture, BFF pattern, and Azure cloud deployment"
-version: 2
+description: "Architecture Decision Record blueprint for microservices modernization. Resolves the target stack, cloud, datastore, migration tool, logging, and test conventions dynamically from the TSA (e.g. Java 17 / Spring Boot 3.2.x / Maven / DB2 / Flyway / Redis / OAuth2-JWT). Optional patterns (multi-tenancy, BFF, messaging) apply ONLY where the TSA declares them."
+version: 3
 created: "2026-06-08"
-updated: "2026-06-08"
+updated: "2026-06-11"
 ---
 ## When to Use
-Use when creating or documenting architecture decisions for microservices modernization projects, especially when migrating from legacy applications to cloud-native Java microservices with multi-tenancy requirements. Apply when setting up new services, defining API standards, implementing observability, or establishing distributed system patterns.
+Use when creating or documenting architecture decisions for microservices modernization projects migrating a legacy application to a cloud-native service. Apply when setting up a new service, defining API standards, implementing observability, or establishing distributed-system patterns. **Resolve every concrete technology, version, cloud, and tool from the TSA — never hardcode a stack.** This skill is the blueprint; the TSA is the source of truth.
 
 ## Procedure
-1. **Technology Stack Selection**: Java 21 LTS runtime, Spring Boot 4.0.6, Maven 3.9+, PostgreSQL 15+, Azure Managed Redis, React 19.x frontend, OpenTelemetry + Grafana Cloud for observability
-2. **Project Structure**: Implement strict 3-tier architecture - Controller (routing, DTO validation), Service (business logic, transactions), Repository (data access with Spring Data JPA). Use standard directory layout with separate packages for config, dto/request, dto/response, exception, interceptor, mapper, model, service/impl, client, util
-3. **API Design Standards**: Use POST for sensitive/complex data (create/update/delete/read), GET only for non-sensitive retrieval. Implement hybrid versioning: URI versioning (/api/v1/) for breaking changes, Content-Negotiation (Accept header) for minor versions. Standardize request headers (X-Correlation-ID, userId, Content-Type) and response format with status, statusCode, message, data, errors array
-4. **Multi-Tenant Architecture**: Implement application-level routing using X-Tenant-Ids header with AbstractRoutingDataSource pattern. Store tenant mapping in dedicated database table with Azure Redis cache (TTL: 24h). Use cache-aside pattern. Ensure all domain tables include tenant_id column for data isolation
-5. **BFF Pattern Implementation**: Create Backend-for-Frontend layer with Spring Boot + FeignClient for domain service aggregation. Implement Resilience4j patterns (circuit breaker, retry, timeout, bulkhead). Handle UI orchestration, data transformation, and service composition. Support parallel calls for multi-tenant requests
-6. **Observability & Tracing**: Implement dual identifier strategy - correlationId (business-level, UI-generated) for end-to-end user journey tracking, and traceId (technical-level, OpenTelemetry-generated at BFF) for distributed tracing. Use SLF4J + Log4j2 with MDC context propagation, structured JSON logging via JsonTemplateLayout, async logging with LMAX Disruptor. Integrate with Grafana Cloud
-7. **Caching Strategy**: Implement multi-layer caching - APIM level (selective static/reference data), BFF level (user session, aggregated responses with Azure Redis), Domain service level (business entities with Caffeine + Azure Redis), HTTP level (browser/CDN). Use cache-aside pattern with write-through at domain layer
-8. **Testing Requirements**: Achieve 90% unit test coverage enforced by JaCoCo. Use JUnit 5 (Jupiter) with @ExtendWith(MockitoExtension.class) for unit tests (no Spring context), @SpringBootTest with WireMock for integration tests, @WebMvcTest/@DataJpaTest for layer testing. Enable parallel test execution. Strictly prohibit test skipping in CI
-9. **Inter-Service Communication**: Use non-reactive stack (Spring MVC + Virtual Threads). Implement FeignClient for declarative REST calls. Apply Resilience4j patterns for fault tolerance. Use MapStruct for compile-time DTO mapping. Enable virtual threads in Spring Boot configuration
-10. **Database Management**: Use Liquibase for schema migrations with version control. Each domain service manages its own schema with tenant_id in all tables. Store migration files in src/main/resources/db/changelog/. Implement automated rollback capabilities
-11. **Security & Configuration**: Store all secrets in Azure Key Vault. Use constructor injection with final fields. Implement proper error handling with safe messages (never expose stack traces). Always propagate correlation IDs. Redact PII from logs
-12. **CI/CD Quality Gates**: Enforce build failures for: Checkstyle violations, JUnit 5 test failures, JaCoCo coverage below 90%, OWASP Dependency Check findings with CVSS >= 7. No test skipping allowed
-13. **Naming Conventions**: packages (lowercase reverse domain: com.sales.service), Classes/Records (PascalCase), methods/variables (camelCase), constants (UPPER_SNAKE_CASE), REST APIs (kebab-case with versioning: /api/v1/customer-orders)
+1. **Technology Stack Selection (resolve from `tsa.technology`)**: Read `tsa.technology.application.{language, language_version, framework, framework_version, build_tool, boilerplate_tool}`, `tsa.technology.database.{vendor, access, migration_tool}`, `tsa.technology.caching.provider`, `tsa.technology.security.{type, provider}`, and `tsa.technology.observability`. Pin to exactly those versions; never use a language/framework feature newer than the resolved version (defer language rules to the matching `*-best-practices` skill). *Example resolution for the reset-password TSA:* Java 17 LTS, Spring Boot 3.2.x, Maven, Lombok, DB2 via JPA/Hibernate, Flyway, Redis, OAuth2/JWT with AWS Cognito, Micrometer + Prometheus + Actuator.
+2. **Project Structure (resolve from `tsa.project`)**: Implement the `tsa.project.structure` (e.g. layered) with the layers/folders from `tsa.project.phase_folder_map` + `subfolder_conventions`. For a layered service: Controller (routing, DTO validation) → Service (business logic, transactions, `service/impl`) → Repository (Spring Data JPA). Separate packages for config, dto, mapper, model, exception, repository, client, util, security. All files under `tsa.project.root_path`, single root namespace (`tsa.project.package`).
+3. **API Design Standards (resolve from `tsa.technology.api`)**: Apply the TSA `style`, `versioning` (e.g. URI `/api/v1/...`), `content_type`, and `contract` (e.g. OpenAPI 3.0 via Springdoc). Standardize a response envelope (status, statusCode, message, data, errors[]) and a correlation header. Use HTTP verbs by resource semantics; keep controllers thin.
+4. **Multi-Tenant Architecture (ONLY if the TSA declares multi-tenancy)**: If `tsa` defines tenancy (e.g. a tenant discriminator / per-tenant routing), implement application-level routing (e.g. `AbstractRoutingDataSource`) and include the tenant column on tenant-scoped tables, cached per the TSA cache provider. **If the TSA describes a single-tenant service (as in reset-password), do NOT add tenant columns, tenant headers, or routing datasources.**
+5. **BFF Pattern (ONLY if the TSA declares a BFF/aggregation tier)**: If the service `type` is a BFF or the TSA defines downstream aggregation, create the BFF layer with declarative REST clients + Resilience4j (circuit breaker, retry, timeout, bulkhead). **For a DOMAIN service with no aggregation tier, do NOT introduce a BFF, Feign aggregation, or upward dependencies.**
+6. **Observability & Tracing (resolve from `tsa.technology.observability`)**: Implement the TSA logging stack (e.g. SLF4J + Logback with structured JSON + correlation/trace IDs in MDC), metrics (e.g. Micrometer with the registry named in the TSA, e.g. Prometheus), and health via Actuator (`/actuator/health`, readiness/liveness). Add the custom metrics listed in `tsa.technology.observability` where present. Use the logging framework the TSA names — do not substitute another.
+7. **Caching Strategy (resolve from `tsa.technology.caching`)**: Use the TSA cache provider (e.g. Redis via Spring Cache abstraction) for the declared `use_cases` with the declared `eviction_policy`. Annotate with `@Cacheable`/`@CacheEvict`; cache DTOs (never Hibernate proxies/entities). Apply manual invalidation on the events the TSA calls out (e.g. invalidate user profile cache on password reset).
+8. **Testing Requirements (resolve from `tsa.testing`)**: Meet `tsa.testing.unit_tests.coverage_target` (e.g. 80% line) enforced by JaCoCo. Use the TSA frameworks: JUnit 5 (Jupiter) + Mockito with `@ExtendWith(MockitoExtension.class)` for unit tests, `@WebMvcTest`/`@DataJpaTest` for slices, Spring Boot Test + Testcontainers for integration. On Spring Boot 3.2.x use `@MockBean` (the `@MockitoBean` replacement is Spring Boot 3.4+/4.x — do not use it on 3.2). No test skipping in CI.
+9. **Inter-Service / Outbound Communication**: Use the non-reactive stack (Spring MVC) unless the TSA says otherwise; enable virtual threads only when the resolved Spring Boot version supports them (3.2+ via `spring.threads.virtual.enabled`). Use the framework's idiomatic HTTP client (`RestClient`/`WebClient`/`RestTemplate`) for outbound REST integrations (e.g. the notification client in `tsa.technology.messaging`); use a declarative client (Feign) only where the TSA standardizes on it. Use MapStruct for compile-time DTO↔Entity mapping.
+10. **Database & Migrations (resolve from `tsa.technology.database`)**: Use the TSA `vendor` dialect and `migration_tool`. For DB2 + Flyway: write Db2-dialect DDL under `src/main/resources/db/migration/` as `V<n>__<desc>.sql`; never edit an applied migration. Preserve the legacy schema (e.g. `OCP_*` tables) per `tsa.migration`. Defer engine specifics to the matching DB skill (db2/oracle/postgresql/mongodb).
+11. **Security & Configuration (resolve from `tsa.technology.security` + `compliance_and_security`)**: Implement the TSA auth (e.g. OAuth2 resource server validating Cognito-issued JWTs, stateless, `@PreAuthorize` RBAC with the TSA roles). Store secrets in the vault the TSA names (e.g. AWS Secrets Manager). Constructor injection with final fields; safe error messages (never expose stack traces); propagate correlation IDs; redact PII from logs.
+12. **CI/CD Quality Gates**: Fail the build on: Checkstyle violations, test failures, JaCoCo coverage below `tsa.testing` target, and dependency-scan findings above the agreed CVSS threshold (e.g. OWASP Dependency Check). No test skipping.
+13. **Naming Conventions**: packages (lowercase reverse-DNS from `tsa.project.package`), Classes/Records (PascalCase), methods/variables (camelCase), constants (UPPER_SNAKE_CASE), REST paths (kebab-case + versioning, e.g. `/api/v1/password-reset`).
 
 ## Pitfalls
-- Do NOT put business logic in controllers - controllers should only handle routing and DTO validation
-- Avoid field injection - use constructor injection with final fields for immutability and testability
-- Never hardcode secrets or credentials - always use Azure Key Vault or environment variables
-- Do NOT expose stack traces in API responses - use safe error messages with trace_id for debugging
-- Avoid mixing reactive and non-reactive patterns - stick to Spring MVC + Virtual Threads consistently
-- Do NOT implement single-layer caching - use multi-layer strategy (APIM, BFF L2, Domain L1+L2, HTTP) for optimal performance
-- Never skip correlation ID propagation - both correlationId (business) and traceId (technical) must flow through all services
-- Avoid synchronous-only communication for >3 step transactions - use distributed Saga patterns with Spring State Machine
-- Do NOT store tenant mapping in configuration files - use database as source of truth with Redis caching
-- Never allow test skipping in CI/CD pipeline - tests must always run and pass
-- Avoid using GET for sensitive data or complex queries - use POST to prevent URL length limits and security issues
-- Do NOT create tables without tenant_id column in multi-tenant domain services
-- Never load Spring context in unit tests - use Mockito extensions (@ExtendWith(MockitoExtension.class)) for faster execution
-- Do NOT skip parent POM - all services MUST inherit from parent-project/pom.xml with Spring Boot 4.0.6
-- Never use Logback - ALWAYS use SLF4J + Log4j2 with JsonTemplateLayout and exclude logback-classic from ALL dependencies
-- Avoid creating common-framework without proper separation - NO datasource/Azure config in common-framework
-- Do NOT manually extract X-Tenant-Id, X-User-ID, X-Correlation-ID from HttpServletRequest - use TenantContextHolder (auto-populated by filters)
-- Never add Authorization, X-User-ID, X-Tenant-Ids headers to Feign method signatures - DomainFeignInterceptor auto-injects these
-- Do NOT use FallbackFactory for Feign fallbacks - use class-based fallback implementing the Feign interface
-- Never manually set MDC fields (correlationId, traceId, tenantId, userId) - MdcFilter auto-populates these
-- Avoid caching JPA entities - ALWAYS cache DTOs only (entities have Hibernate proxies)
-- Do NOT use @Cacheable without composite SpEL key and unless condition
-- Never skip @CacheEvict on write/update/delete operations
-- Do NOT classify caches incorrectly - reference/static → L1+L2, transient/per-request → L2 only
-- Never put per-request/transient data in L1 (Caffeine) - L1 is for reference data ONLY
-- Avoid using @SpringBootTest for unit tests - use @ExtendWith(MockitoExtension.class) for unit, @WebMvcTest for controller slice, @DataJpaTest for repository slice
-- Do NOT use deprecated @MockBean - use @MockitoBean (Spring Boot 4.x)
-- Never use JUnit 4 - ALWAYS use JUnit 5 (Jupiter) and exclude junit-vintage-engine
-- Avoid using Mockito.when()/verify() - use BDD-style given()/then()
-- Do NOT use JUnit assertions - use AssertJ (assertThat, assertThatThrownBy)
-- Never use @Data on @Entity classes - use @Getter/@Setter and manual equals()/hashCode() on @Id field only
-- Avoid FetchType.EAGER on JPA relationships - ALWAYS use FetchType.LAZY with explicit fetch joins
-- Do NOT expose JPA entities in REST responses - ALWAYS use DTOs
-- Never skip @Transactional(readOnly = true) on read service methods
-- Do NOT use RestTemplate - ALWAYS use FeignClient for inter-service calls
-- Never modify applied Liquibase changelogs - ALWAYS add new changeset
-- Avoid hardcoding database credentials - ALWAYS use Azure Managed Identity
-- Do NOT implement custom JWT parsing or tenant authorization - TenantSecurityFilter handles this
-- Never re-implement user profile caching or tenant-DB mapping - CoreFramework provides UserProfileCacheService and TenantDbMappingCacheService
-- Avoid using System.out.println or e.printStackTrace() - use SLF4J logger with parameterized logging
-- Do NOT log raw PII, passwords, or JWT tokens - use LogMaskingUtil.maskEmail() and mask sensitive data
-- Never use string concatenation in log statements - use parameterized logging (log.info("msg id={}", id))
-- Avoid catching Exception broadly - catch specific exceptions and handle appropriately
-- Do NOT return null from public API methods - use Optional or empty collections
-- Never use RELEASE/+ dynamic versions in Maven - use dependencyManagement with explicit versions
-- Avoid *.md in .gitignore - this excludes README.md and documentation
-- Do NOT commit .slingshot/, .idea/, .vscode/, target/ to version control
-- Never leave commented-out functional code or stale TODOs
-- Avoid using fully-qualified class names inline - ALWAYS use imports
-- Do NOT initialize collection fields as null - initialize as empty lists
-- Never use synchronized with virtual-thread workloads unless justified - it pins carrier threads
-- Avoid shared mutable static state - use per-call instances for SimpleDateFormat, DecimalFormat (or use DateTimeFormatter)
-- Do NOT create multiple StringUtils classes - use one consistently
-- Never put pagination validation in both controller and service - define in one layer only
-- Avoid non-descriptive test names - follow methodName_scenario_expectedBehavior pattern
-- Do NOT skip @DisplayName on tests
-- Never commit unused imports
-- Avoid files without trailing newline
-## Verification
-1. Verify project structure matches 3-tier architecture with standard package layout (controller, service, repository, dto, model, etc.)
-2. Confirm API endpoints follow naming conventions (kebab-case, versioned /api/v1/) and return standardized response format with status, statusCode, message, data, errors
-3. Validate multi-tenant routing works correctly with X-Tenant-Ids header and tenant mapping cached in Redis with 24h TTL
-4. Check BFF layer uses FeignClient for domain service calls with Resilience4j patterns (circuit breaker, retry, timeout) configured
-5. Verify logs contain both correlationId and traceId in structured JSON format, with PII redacted and async logging enabled
-6. Confirm JaCoCo reports show >= 90% code coverage, JUnit 5 tests run in parallel, and CI pipeline fails when tests are skipped
-7. Validate multi-layer caching is active at APIM, BFF (Azure Redis), Domain (Caffeine + Azure Redis), and HTTP levels
-8. Check all secrets are retrieved from Azure Key Vault, not hardcoded or in configuration files
-9. Verify Liquibase migrations execute successfully with proper schema isolation and tenant_id columns in all domain tables
-10. Confirm OpenTelemetry integration sends traces to Grafana Cloud with proper context propagation across services
-11. Validate virtual threads are enabled in Spring Boot configuration for improved I/O-bound performance
-12. Check all REST endpoints use POST for sensitive/complex data and GET only for non-sensitive retrieval
+- Do NOT hardcode a stack/version/cloud — resolve them from the TSA; never exceed the resolved language/framework version.
+- Do NOT put business logic in controllers — controllers only route and validate DTOs.
+- Avoid field injection — use constructor injection with final fields.
+- Never hardcode secrets/credentials — use the vault named in `tsa.technology.security` / `deployment` (e.g. AWS Secrets Manager).
+- Do NOT expose stack traces in API responses — use safe messages with a correlation/trace id.
+- Use the logging framework the TSA names — for `tsa.technology.observability.logging = SLF4J + Logback`, use Logback (NOT Log4j2); do not add or exclude logging backends the TSA did not specify.
+- Use the migration tool the TSA names — for `tsa.technology.database.migration_tool = Flyway`, use Flyway (NOT Liquibase); never edit an applied migration.
+- Do NOT add multi-tenant columns/headers/routing unless the TSA declares tenancy.
+- Do NOT add a BFF tier, Feign aggregation, or upward dependencies unless the TSA declares a BFF.
+- Match the test-double API to the resolved Spring Boot version — `@MockBean` on Spring Boot 3.2.x (NOT `@MockitoBean`); JUnit 5 only (exclude junit-vintage-engine).
+- Never load Spring context in unit tests — use `@ExtendWith(MockitoExtension.class)`; use `@WebMvcTest`/`@DataJpaTest` for slices.
+- Do NOT skip the parent POM — inherit from `spring-boot-starter-parent` at the resolved Spring Boot version.
+- Never use `@Data` on `@Entity` classes — use `@Getter`/`@Setter` (+ `@EqualsAndHashCode` on the business/`@Id` key); apply Lombok per `tsa.technology.boilerplate_tool` everywhere else.
+- Avoid FetchType.EAGER — use LAZY with explicit fetch joins; never expose JPA entities in REST responses (DTOs only).
+- Never skip `@Transactional(readOnly = true)` on read service methods.
+- Use the HTTP client the TSA implies (`RestClient`/`WebClient`/`RestTemplate` for the notification client) — do not force Feign where the TSA does not standardize on it.
+- Do NOT cache JPA entities/Hibernate proxies — cache DTOs; pair `@Cacheable` with a key + `unless`, and `@CacheEvict` on writes.
+- Avoid catching `Exception` broadly; do not return null from public APIs (use Optional/empty collections).
+- Never use `RELEASE`/dynamic Maven versions — pin via dependencyManagement.
+- Never commit `target/`, `.idea/`, `.vscode/`; do not exclude `*.md`; no unused imports; files end with a newline.
+- Never leave commented-out functional code, TODO/FIXME/STUB (zero-TODO policy).
+
+## Validation Rules
+- Resolved language/framework/build-tool/DB/migration-tool/logging/cache/security match `tsa.technology.*`; no construct exceeds the resolved version.
+- Project structure matches `tsa.project.structure` + `phase_folder_map`; all files under `root_path`; single root namespace.
+- API versioning/contract match `tsa.technology.api`; standardized error envelope + correlation id.
+- Logging uses the TSA-named framework (Logback for reset-password); migrations use the TSA-named tool (Flyway).
+- JaCoCo coverage ≥ `tsa.testing` target; JUnit 5 + correct test-double API for the resolved Spring Boot version; no skipped tests.
+- Multi-tenant / BFF / messaging present only if declared in the TSA.
+- Secrets from the TSA vault; constructor injection; no entities exposed; LAZY relationships; readOnly read transactions.
+
+## RAG Sources
+- tsa.technology / tsa.project / tsa.testing / tsa.deployment / tsa.compliance_and_security
+- spring-boot-docs
+- openapi-3-spec
+- pair with java17-springboot3-best-practices, build-toolchain-alignment, and the matching db/security/messaging skills
