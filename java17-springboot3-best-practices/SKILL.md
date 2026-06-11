@@ -53,3 +53,5 @@ Use when `tsa.technology.application.language` = Java AND `language_version` res
 ## RAG Sources
 - spring-boot-docs
 - openapi-3-spec
+- tsa.technology.application (resolve language_version / framework_version)
+- the project best-practices artifact (e.g. best-practices.md) for service-specific Spring Boot 3.x / Java 17 conventions; broader (non-language) topics live in the dedicated skills (rest-api-design, jpa, oauth2, testing, …)
