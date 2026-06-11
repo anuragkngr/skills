@@ -10,14 +10,14 @@ TSA (e.g. `messaging.broker = Kafka` → kafka skill).
 
 ## Catalog
 
-### Cross-cutting / framework (carried over)
-- `adr-microservices-blueprint` — architecture decision blueprint
-- `java21-springboot4-best-practices` — JVM/Spring Boot coding standards
+### Cross-cutting / framework
+- `adr-microservices-blueprint` — architecture decision blueprint (stack resolved from the TSA)
+- `java17-springboot3-best-practices` — JVM/Spring Boot coding standards (Java 17 / Spring Boot 3.x)
+- `build-toolchain-alignment` — align the build/runtime toolchain to the TSA version
 - `domain-service-coreframework-guidelines` — domain-service core-framework rules
-- `bff-service-coreframework-guidelines` — BFF core-framework rules
 - `legacy-sql-to-modern-jpa-transformation` — legacy SQL → JPA migration
 - `compilation-error-triage` — build/compile error triage
-- `spring-boot-4-test-stabilization` — test stabilization
+- `spring-boot-3-test-stabilization` — test stabilization (Spring Boot 3.x / Java 17)
 - `microservice-iteration-handoff` — iteration handoff
 
 ### Application agent

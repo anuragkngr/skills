@@ -14,7 +14,7 @@ Use when designing the persistence model or migrating a legacy schema. Activate 
 3. Choose natural vs surrogate keys consistently; define referential integrity.
 4. Map legacy tables/columns to the target model; preserve required semantics, modernize naming.
 5. Apply consistent naming conventions (tables, columns, constraints, indexes).
-6. Hand the physical model to the engine-specific skill (postgresql/oracle/mongodb) + migration skill.
+6. Hand the physical model to the engine-specific skill for `tsa.technology.database.vendor` (db2/postgresql/oracle/mongodb) + the migration skill (e.g. flyway).
 
 ## Patterns
 - Logical-then-physical modeling

@@ -1,47 +1,53 @@
 ---
 name: "compilation-error-triage"
-description: "Systematic error classification and resolution order for Java/Spring Boot compilation, test, and runtime errors in microservices migration projects"
-version: 1
+description: "Systematic error classification and resolution order for Java/Spring Boot compilation, test, and runtime errors in microservices migration projects. Versions, datastore, migration tool, and logging backend are resolved from the TSA (e.g. Java 17 / Spring Boot 3.2.x / Maven / DB2 / Flyway / Logback)."
+version: 2
 created: "2026-06-09"
-updated: "2026-06-09"
+updated: "2026-06-11"
 ---
 ## When to Use
-Use when encountering build failures, compilation errors, test failures, or runtime errors during microservices development or migration. Apply when facing multiple error types simultaneously and need prioritized resolution order. Essential for troubleshooting Spring Boot 4.x, Java 21, Maven, JPA, and framework integration issues.
+Use when encountering build failures, compilation errors, test failures, or runtime errors during microservices development or migration. Apply when facing multiple error types simultaneously and need a prioritized resolution order. **Resolve the target Java/Spring Boot versions, datastore, migration tool, and logging backend from the TSA** (`tsa.technology.application.{language_version, framework_version, build_tool}`, `tsa.technology.database.{vendor, migration_tool}`, `tsa.technology.observability.logging`) — never assume a version. Essential for Maven/JPA/framework integration issues on the TSA-pinned stack (e.g. Spring Boot 3.2.x / Java 17).
 
 ## Procedure
-1. STEP 1: Classify All Errors - Run 'mvn clean compile' and collect all error output. Categorize each error: COMPILE (syntax, missing class, unresolved dependency), TEST (test compilation, test execution failure, assertion failure), RUNTIME (startup failure, bean creation, configuration error). Document error count per category. Prioritize: COMPILE → TEST → RUNTIME (fix in this order)
-2. STEP 2: Resolve Dependency Errors First - Check parent POM inheritance (must extend spring-boot-starter-parent 4.0.6+). Verify all core-framework-* dependencies are declared with correct scope. Run 'mvn dependency:tree' to check for conflicts. Add missing dependencies (spring-boot-starter-web, spring-boot-starter-data-jpa, etc.). Exclude logback-classic and junit-vintage-engine from ALL dependencies. Fix version conflicts using dependencyManagement section. Re-run 'mvn clean compile'
-3. STEP 3: Fix Schema Mapping Errors - Review entity @Table annotations match actual database schema names. Verify @Column(name='...') matches exact DB column names (case-sensitive for PostgreSQL). Add missing @Id, @GeneratedValue on primary keys. Fix relationship mappings (@ManyToOne, @OneToMany) with proper FetchType.LAZY. Add tenant_id column to all tenant-specific entities. Ensure Liquibase changelogs exist for all tables. Validate JPA entities compile with 'mvn clean compile'
-4. STEP 4: Resolve Import and Package Errors - Fix missing imports (auto-import in IDE or add manually). Remove unused imports. Verify package names follow reverse-DNS lowercase convention (com.sales.service, not com.Sales.Service). Check classes are in correct packages (controllers in .controller, services in .service, etc.). Ensure no duplicate class names across packages. Re-compile after each fix batch
-5. STEP 5: Fix Type Errors and Annotations - Verify Records have @JsonProperty on all fields. Check service layer uses constructor injection with final fields (no @Autowired on fields). Ensure controllers use @RestController, services use @Service, repositories extend JpaRepository. Fix generic type mismatches (List<String> vs List<Object>). Add @Transactional on service methods. Add @Valid on controller DTOs. Verify MapStruct mappers have @Mapper(componentModel='spring')
-6. STEP 6: Resolve Test Compilation Errors - Check test classes use JUnit 5 (@Test from org.junit.jupiter.api, NOT org.junit). Use @ExtendWith(MockitoExtension.class) for unit tests (not @RunWith). Replace @MockBean with @MockitoBean (Spring Boot 4.x). Fix test assertions to use AssertJ (assertThat, not assertEquals). Add missing test dependencies (junit-jupiter, mockito-core, assertj-core). Ensure test resources (application-test.yml) exist
-7. STEP 7: Fix Test Execution Failures - Run 'mvn clean test' and collect failures. For 'No qualifying bean' errors in slice tests: add @MockitoBean for external dependencies. For 'Unable to find @SpringBootConfiguration': ensure test class is in same package or sub-package as @SpringBootApplication. For Testcontainers failures: verify Docker is running or switch to H2 for unit tests. For mock setup errors: use given().willReturn() pattern (BDD style). Fix assertions to match actual vs expected order (assertThat(actual).isEqualTo(expected))
-8. STEP 8: Document and Track - Create error log with: error type, error message, root cause, resolution. Track resolution order and time per category. Document common patterns (missing dependency X causes error Y). Update project README with known issues and fixes. Create checklist for future iterations
+1. STEP 1: Classify All Errors - Run the build (`mvn clean compile`) and collect all output. Categorize each error: COMPILE (syntax, missing class, unresolved dependency), TEST (test compilation/execution/assertion), RUNTIME (startup, bean creation, configuration). Document error count per category. Prioritize: COMPILE → TEST → RUNTIME (fix in this order).
+2. STEP 2: Resolve Dependency Errors First - Verify the parent POM inherits `spring-boot-starter-parent` at the TSA-resolved version (e.g. 3.2.x — never bump to a version the TSA did not specify). Verify required starters are declared (`spring-boot-starter-web`, `-data-jpa`, `-security`, `-validation`, `-actuator`, plus the DB driver from `tsa.technology.database.vendor`, e.g. `db2jcc`). Run `mvn dependency:tree` for conflicts; resolve via `dependencyManagement`. Exclude `junit-vintage-engine`. Only adjust the logging backend if the TSA logging stack requires it (for SLF4J + Logback, keep Spring Boot's default Logback — do NOT swap in Log4j2). Re-run `mvn clean compile`.
+3. STEP 3: Fix Schema Mapping Errors - Ensure entity `@Table`/`@Column(name=...)` match the actual DB schema exactly, honoring the target vendor's identifier casing (`tsa.technology.database.vendor`; for DB2 preserve the legacy `OCP_*` table/column names). Add missing `@Id`/`@GeneratedValue`; map relationships with `FetchType.LAZY`. Ensure migrations exist under `src/main/resources/db/migration/` using the TSA migration tool (Flyway `V<n>__*.sql`). Validate entities compile (`spring.jpa.hibernate.ddl-auto=validate`).
+4. STEP 4: Resolve Import and Package Errors - Fix missing/unused imports. Use the `jakarta.*` namespace (Spring Boot 3 baseline) — never `javax.*` for servlet/persistence/validation. Verify reverse-DNS lowercase packages under the TSA root namespace (e.g. `com.omantel.resetpassword.service`). Keep classes in the correct layer packages (controllers in `.controller`, services in `.service`, etc.); no duplicate class names. Recompile after each fix batch.
+5. STEP 5: Fix Type Errors and Annotations - For records used as DTOs add `@JsonProperty` where stable JSON names are required. Use constructor injection with final fields (`@RequiredArgsConstructor`; no field `@Autowired`). `@RestController`/`@Service`/`@Repository extends JpaRepository`. Fix generic mismatches. `@Transactional` on service methods; `@Valid` on controller DTOs. MapStruct mappers use `@Mapper(componentModel="spring")`. Stay within the TSA `language_version` (for Java 17: no switch pattern matching / record patterns / unnamed variables).
+6. STEP 6: Resolve Test Compilation Errors - Use JUnit 5 (`org.junit.jupiter.api`, NOT `org.junit`). Use `@ExtendWith(MockitoExtension.class)` for unit tests (not `@RunWith`). For the test double, match the resolved Spring Boot version: on **Spring Boot 3.2.x use `@MockBean`** (the `@MockitoBean` replacement only exists in Spring Boot 3.4+/4.x — do NOT use it on 3.2). Use AssertJ (`assertThat`). Add missing test deps (`spring-boot-starter-test` brings JUnit Jupiter, Mockito, AssertJ). Ensure `application-test.yml` exists.
+7. STEP 7: Fix Test Execution Failures - Run `mvn clean test`. For 'No qualifying bean' in slice tests add `@MockBean` for external collaborators. For 'Unable to find @SpringBootConfiguration' ensure the test sits in/under the `@SpringBootApplication` package. For Testcontainers failures verify Docker is running, use the container image matching `tsa.technology.database.vendor` (e.g. Db2, or H2 for fast unit slices), and register via `@DynamicPropertySource`. Use BDD mocking (`given(...).willReturn(...)`); assert `assertThat(actual).isEqualTo(expected)`.
+8. STEP 8: Document and Track - Create an error log (type, message, root cause, resolution). Track resolution order/time per category. Document recurring patterns (missing dependency X → error Y). Record known issues/fixes for the next iteration.
 
 ## Pitfalls
-- DO NOT fix errors in random order - always resolve dependencies first, then compile errors, then test errors, then runtime errors
-- DO NOT assume all errors are code-related - many are configuration or dependency issues in pom.xml
-- DO NOT add dependencies without checking for conflicts - use 'mvn dependency:tree' to validate
-- DO NOT skip parent POM inheritance - services MUST extend spring-boot-starter-parent for Spring Boot 4.x
-- DO NOT use case-insensitive column names - PostgreSQL is case-sensitive, use exact @Column(name='column_name') matching
-- DO NOT fix test failures before fixing compilation errors - tests cannot run if code does not compile
-- DO NOT use @SpringBootTest for unit tests - use @ExtendWith(MockitoExtension.class) to avoid slow Spring context loading
-- DO NOT use JUnit 4 annotations - Spring Boot 4.x requires JUnit 5 (Jupiter), exclude junit-vintage-engine
-- DO NOT use @MockBean - Spring Boot 4.x uses @MockitoBean instead
-- DO NOT ignore schema mapping errors - JPA entities must exactly match database schema (table names, column names, data types)
-- DO NOT add core-framework-web to Domain services - only BFF services should include core-framework-web
-- DO NOT forget to exclude logback-classic - Spring Boot 4.x with Log4j2 requires explicit logback exclusion
-- DO NOT assume error messages are accurate - 'Cannot find symbol' often means missing dependency, not missing code
-- DO NOT fix symptoms without understanding root cause - one missing dependency can cause dozens of cascading errors
+- DO NOT fix errors in random order — dependencies first, then compile, then test, then runtime.
+- DO NOT assume all errors are code-related — many are pom.xml dependency/config issues; use `mvn dependency:tree`.
+- DO NOT bump Spring Boot / Java above the TSA-resolved version to satisfy a newer ambient runtime — align the toolchain instead (see `build-toolchain-alignment`).
+- DO NOT skip parent POM inheritance — extend `spring-boot-starter-parent` at the TSA version.
+- DO NOT use `javax.*` on Spring Boot 3 — use `jakarta.*` for servlet/persistence/validation.
+- DO NOT swap the logging backend the TSA names — for SLF4J + Logback keep Logback; do not introduce Log4j2 (or vice-versa) unless the TSA specifies it.
+- DO NOT use the wrong migration tool — use the TSA tool (e.g. Flyway), and never edit an applied migration.
+- DO NOT mismatch DB identifier casing/dialect — match the target vendor (`tsa.technology.database.vendor`) and preserve legacy schema names.
+- DO NOT fix test failures before compilation errors — tests cannot run if code does not compile.
+- DO NOT use `@SpringBootTest` for unit tests — use `@ExtendWith(MockitoExtension.class)` to avoid slow context loads.
+- DO NOT use JUnit 4 — JUnit 5 (Jupiter); exclude `junit-vintage-engine`.
+- DO NOT use `@MockitoBean` on Spring Boot 3.2.x — it is 3.4+/4.x; use `@MockBean`.
+- DO NOT use a Java feature newer than the TSA `language_version` (for Java 17: no switch pattern matching, record patterns, or unnamed variables — those are Java 21).
+- DO NOT ignore schema mapping errors — entities must match the DB schema exactly (names, types).
+- DO NOT assume error messages are literal — 'Cannot find symbol' often means a missing dependency, not missing code; fix root causes, not symptoms.
 
 ## Verification
-1. Run 'mvn clean compile' successfully with zero compilation errors
-2. Run 'mvn dependency:tree' and verify no conflicts, all core-framework-* dependencies present
-3. Run 'mvn clean test' and verify all tests pass with no mocking errors or bean creation failures
-4. Check JaCoCo report shows >= 90% coverage (mvn jacoco:report)
-5. Verify application starts successfully with 'mvn spring-boot:run' (no bean creation or configuration errors)
-6. Check logs show no WARN or ERROR during startup
-7. Verify database schema matches JPA entities (run Liquibase validation or compare DDL)
-8. Confirm all entities have @Id, @Table with correct schema, @Column names matching DB exactly
-9. Validate no deprecated APIs or warnings in build output
-10. Run 'mvn checkstyle:check' to ensure code style compliance
+1. `mvn clean compile` succeeds with zero errors on a JDK whose major == `tsa.technology.application.language_version` (e.g. 17).
+2. `mvn dependency:tree` shows no conflicts; required starters + the TSA DB driver present.
+3. `mvn clean test` passes with no mocking/bean-creation failures.
+4. JaCoCo coverage meets `tsa.testing.unit_tests.coverage_target` (e.g. ≥ 80% line) — `mvn jacoco:report`.
+5. Application starts via `mvn spring-boot:run` with no bean/configuration errors and no startup WARN/ERROR.
+6. DB schema matches JPA entities (validate via `ddl-auto=validate` or the TSA migration tool, e.g. `flyway:validate`).
+7. All entities have `@Id`, correct `@Table`/`@Column` names; `jakarta.*` imports only; no `javax.*`.
+8. No deprecated APIs/warnings; no source feature exceeding the TSA `language_version`.
+9. `mvn checkstyle:check` passes (if configured).
+
+## RAG Sources
+- tsa.technology.application / tsa.technology.database / tsa.technology.observability / tsa.testing
+- spring-boot-docs
+- maven-docs
+- pair with java17-springboot3-best-practices, build-toolchain-alignment, spring-boot-3-test-stabilization
